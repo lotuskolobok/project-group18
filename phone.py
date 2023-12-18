@@ -1,6 +1,5 @@
 import re
 
-
 class Phone:
     def __init__(self, value=''):
         self.values = []
