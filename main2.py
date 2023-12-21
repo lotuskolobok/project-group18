@@ -2,69 +2,93 @@ from collections import UserDict
 from datetime import datetime
 from datetime import date
 
+import cmd
+import pickle
 import re
-
-def phone_validate(phone_number: str):
-    
-    try:
-        phone_number = (phone_number.strip()
-                        .replace('(', '')
-                        .replace(')', '')
-                        .replace('-', '')
-                        .replace(' ', ''))
-        
-        if len(phone_number) == 13:
-            if re.match('^\\+38\d{10}$', phone_number):
-                return phone_number
-            
-        elif len(phone_number) == 12:
-            if re.match('^\d{12}$', phone_number):
-                phone_number = '+' + phone_number
-                return phone_number
-            
-        elif len(phone_number) == 10:
-            if re.match('^\d{10}$', phone_number):
-                phone_number = '+38' + phone_number
-                return phone_number
-        else:
-            raise ValueError    
-            
-    
-    except:
-        print (f'Number {phone_number} is not valid.')
-        return None
-
 
 class Field:
     def __init__(self, value):
-        self.value = value
+        self.__value = value
 
     def __str__(self):
-        return str(self.value)
+        return str(self.__value)
+
+    # додали getter для атрибутів value спадкоємців Field.
+    @property
+    def value(self):
+        return self.__value
+
+    # додали setter для атрибутів value спадкоємців Field.
+    @value.setter
+    def value(self, value):
+        self.__value = value
 
 
 class Name(Field):
     pass
 
 
-class Phone(Field):
-    def __init__(self, value):
-        super().__init__(value)
+class Phone():
+    def __init__(self, value) -> None:
+        p = self.validate(value)
+        if p != None:
+            self.__value = value
 
     def __str__(self):
-        return self.value
+        return self.__value
+
+    # додали getter для атрибуту value
+    @property
+    def value(self):
+        return self.__value
+
+    # додали setter для атрибуту value
+    @value.setter
+    def value(self, value):
+        p = self.validate(value)
+        if p != None:
+            self.__value = p
+
+    def validate(self, value):
+
+        phone_number = (value.strip()
+                        .replace('(', '')
+                        .replace(')', '')
+                        .replace('-', '')
+                        .replace(' ', '')
+                        .replace('+', ''))
+
+        if len(phone_number) == 13:
+            if re.match('^\\+38\d{10}$', phone_number):
+                return phone_number
+        elif len(phone_number) == 12:
+            if re.match('^\d{12}$', phone_number):
+                phone_number = '+' + phone_number
+                return phone_number
+        elif len(phone_number) == 10:
+            if re.match('^\d{10}$', phone_number):
+                phone_number = '+38' + phone_number
+                return phone_number
+        else:
+            phone_number = None
+
+        return phone_number
 
 
+# додали клас Birthday, який наслідуємо від класу Field
 class Birthday(Field):
 
+    # додали getter для атрибуту value
     @property
     def value(self):
         return self._Field__value
 
+    # додали setter для атрибуту value
     @value.setter
     def value(self, value):
         self._Field__value = self.validate(value)
 
+    # додели метод для перевірки правильності вказаної дати
     def validate(self, value):
         if value == None:
             return None
@@ -76,23 +100,28 @@ class Birthday(Field):
         except ValueError:
             return None
 
+# додали необов'язковий параметр birthday
+
+
 class Record:
-    def __init__(self, name, birthday=None, email=None):
+    def __init__(self, name, birthday=None):
         self.name = Name(name)
         self.phones = []
         self.birthday = Birthday(birthday)
-        self.email = Email(email)
 
     def __str__(self):
-        return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}, email: {self.email.value}"
+        return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
 
+    # додали метод, який повертає значення параметра birthday
     def show_birthday(self):
         return f"Contact name: {self.name.value}, birthday: {self.birthday.value}"
 
-
+    # додали метод days_to_birthday, який повертає кількість днів до наступного дня народження контакту, якщо день народження заданий
     def days_to_birthday(self):
+
         if self.birthday.value is None:
-            delta_days = 0
+            delta_days = None
+
         else:
             try:
                 this_date = date.today()
@@ -108,39 +137,31 @@ class Record:
 
                     delta_days = (birthday_date - this_date).days
             except:
-                pass
-        
-        if delta_days > 0:
-            return f'Birthday is coming in: {delta_days} days'
-        else:
-            return ''
+                delta_days = None
+
+        return delta_days
 
     def add_phone(self, phone_number: str):
-        tmp = phone_validate(phone_number)
-        if tmp:
-            self.phones.append(Phone(tmp))
-        else:
-            print(f'Number {phone_number} is not valid.')
+        p = Phone(phone_number)
+        if p:
+            self.phones.append(p)
 
     def find_phone(self, phone_number: str):
-        phone_number = phone_validate(phone_number)
-
+        result = False
         for phone in self.phones:
             if phone.value == phone_number:
+                result = True
                 return phone
 
-        return None
+        if result == False:
+            return None
 
     def edit_phone(self, old_phone, new_phone):
-        old_phone = phone_validate(old_phone)
         phone_obj = self.find_phone(old_phone)
-        
         if phone_obj:
-            new_phone = phone_validate(new_phone)
             phone_obj.value = new_phone
-            return True
         else:
-            return False
+            raise ValueError
 
     def remove_phone(self, rem_phone):
         for phone in self.phones:
@@ -148,37 +169,11 @@ class Record:
                 self.phones.remove(phone)
 
 
-class Email(Field):
-    def __str__(self):
-        return self.value
-
-    @property
-    def email_value(self):
-        return self._Field__value
-
-    @email_value.setter
-    def email_value(self, value):
-        e = self.validate_email(value)
-        if e:
-            self._Field__value = value
-        
-    def validate_email(self, value):
-        
-        try:
-            if re.match(r'^[\w]{1,}([\w.+-]{0,1}[\w]{1,}){0,}@[\w]{1,}([\w-]{0,1}[\w]{1,}){0,}([.][a-zA-Z]{2,}|[.][\w-]{2,}[.][a-zA-Z]{2,})$', self.value):
-                return True
-            else:
-                raise ValueError
-        except:
-            print('Invalid email address! Please enter correct email')
-            return False
-
 class AddressBook(UserDict):
 
     def add_record(self, record: Record):
         self.data[record.name.value] = record
 
-    
     def find(self, name: str):
         if name in self.data:
             return self.data[name]
@@ -191,39 +186,69 @@ class AddressBook(UserDict):
 
     # пошук записів за збігом в імені або номері телефона
     def find_record(self, part: str):
-        result = {}
+        finded = {}
 
         for item, record in self.items():
             # пошук в номері телефона
             for p in record.phones:
                 if part in str(p):
-                    result[item] = self.data[item]
+                    finded[item] = self.data[item]
 
             # пошук в імені
             if part.lower() in item.lower():
-                result[item] = self.data[item]
+                finded[item] = self.data[item]
 
-        return result
+        return finded
+
+    # додали ітератор
+    def iterator(self, N):
+        counter = 0
+        result = ''
+        for item, record in self.data.items():
+            result += f'{item}: {record}\n'
+            counter += 1
+            if counter >= N:
+                yield result
+                counter = 0
+                result = ''
+
+    # додали метод для сериалізації адресної книги та запису її у файл
+    def dump(self):
+        with open(self.file, 'wb') as file:
+            pickle.dump((self.record_id, self.record), file)
+
+    # додали метод для десериалізації адресної книги з файла
+    def load(self):
+        if not self.file.exists():
+            return False
+        with open(self.file, 'rb') as file:
+            self.record_id, self.record = pickle.load(file)
+
+
+# клас для сериалізації адресної книги при виході з програми
+class Controller(cmd.Cmd):
+    def exit(self):
+        self.book.dump()
+        return True
+
 # ----------------------------------------------------------------------------------------------------------
 
 
 if __name__ == "__main__":
 
-    print ('*' * 100)
-    
     # Створення нової адресної книги
     book = AddressBook()
 
     # Створення запису для John
-    john_record = Record("John", "2000-10-05", "bobik@dog.yes")
+    john_record = Record("John", "2000-10-05")
     john_record.add_phone("1234567890")
-    john_record.add_phone("5555555555")
+    john_record.add_phone("555555555p")
 
     # Додавання запису John до адресної книги
     book.add_record(john_record)
 
     # Створення та додавання нового запису для Jane
-    jane_record = Record("Jane", "200002-20")
+    jane_record = Record("Jane", "2001-02-20")
     jane_record.add_phone("9876543210")
     book.add_record(jane_record)
 
@@ -247,8 +272,7 @@ if __name__ == "__main__":
     found_phone = john.find_phone("5555555555")
     print(f"{john.name}: {found_phone}")  # Виведення: 5555555555
 
-    # Пошук за збігом в імені або номері телефона
-    f = 'sa'
+    f = '9'
     print(f'-----Пошук за [{f}]--------')
     f = book.find_record(str(f))
     for name, record in f.items():
